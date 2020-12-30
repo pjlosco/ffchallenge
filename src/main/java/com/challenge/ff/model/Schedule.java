@@ -3,7 +3,11 @@ package com.challenge.ff.model;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.*;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.*;
 
 public class Schedule {
@@ -18,14 +22,50 @@ public class Schedule {
     public Schedule() {
         logger.info("Creating new schedule");
         movieDateMap = new HashMap<LocalDate, Map<Movie, List<Showtime>>>();
+        this.loadFromFile();
     }
 
-    /**
-     * Imports from file
-     * @param filePath
-     */
-    public Schedule(String filePath) {
+    protected void loadFromFile() {
+        try {
+            URL scheduleDirectory = getClass().getClassLoader().getResource("schedule");
+            if (scheduleDirectory != null) {
+                File[] dateFolders = (new File(scheduleDirectory.toURI())).listFiles();
+                Map<Movie, List<Showtime>> movieTimes = new HashMap<Movie, List<Showtime>>();
+                for (File dateFolder : dateFolders) {
+                    for (int movie = 1; movie <= Movie.values().length; movie++) {
+                        File movieSchedule = new File(dateFolder.getPath() + "/" + movie + "/data.csv");
+                        BufferedReader csvReader = new BufferedReader(new FileReader(movieSchedule));
+                        String row = csvReader.readLine();
+                        List<Showtime> showtimeList = new ArrayList<Showtime>();
+                        while (row != null) {
+                            String[] data = row.split(",");
+                            LocalTime timeOfShow = LocalTime.parse(data[0]);
+                            double admissionPrice = Double.parseDouble(data[1]);
+                            showtimeList.add(new Showtime(timeOfShow, admissionPrice));
 
+                            row = csvReader.readLine();
+                        }
+                        csvReader.close();
+                        movieTimes.put(Movie.movieLookup(movie), showtimeList);
+                    }
+                    movieDateMap.put(LocalDate.parse(dateFolder.getName()), movieTimes);
+                }
+            }
+        } catch (URISyntaxException | IOException e) {
+            logger.error("Could not load data");
+        }
+    }
+
+    public void writeToFile() {
+        for (Map.Entry<LocalDate, Map<Movie, List<Showtime>>> entry : movieDateMap.entrySet()) {
+            URL scheduleDirectory = getClass().getClassLoader().getResource("schedule");
+            if (scheduleDirectory == null) {
+                // TODO
+            }
+
+            String dateDirectory = entry.getKey().toString();
+            Map<Movie, List<Showtime>> movieMap = entry.getValue();
+        }
     }
 
     private Map<Movie, List<Showtime>> newMovieListMap() {

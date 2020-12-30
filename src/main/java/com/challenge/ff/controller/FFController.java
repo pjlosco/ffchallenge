@@ -5,7 +5,6 @@ import java.io.InputStream;
 import java.net.URL;
 import java.net.URLConnection;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
@@ -27,21 +26,26 @@ import org.springframework.web.bind.annotation.*;
 @Controller
 public class FFController {
 	Logger logger = LoggerFactory.getLogger(FFController.class);
-	DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+	DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+	DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss");
 
 	Schedule schedule;
 	Map<Movie, String> movieInfo;
 	Map<Movie, List<Review>> reviewMap;
 
 	FFController() {
-		// TODO import data if file found
-
-		// else
 		logger.info("Creating new FF controller");
 		this.schedule = new Schedule();
 		this.movieInfo = new HashMap<Movie, String>();
 		this.reviewMap = new HashMap<Movie, List<Review>>();
 	}
+
+	@GetMapping("/save")
+	@ResponseBody
+	public void save() {
+		schedule.writeToFile();
+	}
+
 
 	@GetMapping("/")
 	@ResponseBody
@@ -51,41 +55,42 @@ public class FFController {
 
 	/**
 	 * Add showtime
+	 * TODO - switch to post mapping
+	 * curl -X POST --header "Content-Type: application/json" http://localhost:9000/add --data '{"movie":"1","date":"2020-12-22","time":"08:00:00","price":"1"}'
 	 */
-	@PostMapping("/add")
+	@GetMapping(value="/add")
 	@ResponseBody
-	public boolean addShowtime(@RequestParam String movie, @RequestParam String datetime, @RequestParam String price) {
+	public boolean addShowtime(@RequestParam String movie, @RequestParam String date, @RequestParam String time, @RequestParam String price) {
 		logger.info("Adding showtime");
-		LocalDateTime datetimeOfShow = LocalDateTime.parse(datetime, formatter);
-		LocalDate date = datetimeOfShow.toLocalDate();
-		LocalTime time = datetimeOfShow.toLocalTime();
-		Showtime showtime = new Showtime(time, Double.parseDouble(price));
-		schedule.addShowtime(date, showtime, Integer.parseInt(movie));
+		LocalDate localDate = LocalDate.parse(date, dateFormatter);
+		LocalTime localTime = LocalTime.parse(time, timeFormatter);
+		Showtime showtime = new Showtime(localTime, Double.parseDouble(price));
+		schedule.addShowtime(localDate, showtime, Integer.parseInt(movie));
 		return true;
 	}
 
 	/**
 	 * An internal endpoint in which they (i.e. the cinema owners) can update show times and prices for their movie catalog
 	 */
-	@PatchMapping("/update")
+	@GetMapping("/update")
 	@ResponseBody
-	public boolean updateShowtime(@RequestParam String movie, @RequestParam String datetime, @RequestParam String price) {
-		LocalDateTime datetimeOfShow = LocalDateTime.parse(datetime, formatter);
-		LocalDate date = datetimeOfShow.toLocalDate();
-		LocalTime time = datetimeOfShow.toLocalTime();
-		Showtime showtime = new Showtime(time, Double.parseDouble(price));
-		schedule.updateShowtime(date, showtime, Integer.parseInt(movie));
+	public boolean updateShowtime(@RequestParam String movie, @RequestParam String date, @RequestParam String time, @RequestParam String price) {
+		LocalDate localDate = LocalDate.parse(date, dateFormatter);
+		LocalTime localTime = LocalTime.parse(time, timeFormatter);
+		Showtime showtime = new Showtime(localTime, Double.parseDouble(price));
+		schedule.updateShowtime(localDate, showtime, Integer.parseInt(movie));
 		return true;
 	}
 
 	/**
 	 * An endpoint in which their customers (i.e. moviegoers) can fetch movie times
+	 * ex; http://localhost:9000/getshowtimes?date=2020-12-22&movie=1
 	 */
 	@GetMapping("/getshowtimes")
 	@ResponseBody
 	public String getShowtimes(@RequestParam String date, @RequestParam String movie) {
 		logger.info("Retrieving showtimes");
-		LocalDate localDate = LocalDate.parse(date, formatter);
+		LocalDate localDate = LocalDate.parse(date, dateFormatter);
 		List<Showtime> showtimes = schedule.getShowtimeList(localDate, Integer.parseInt(movie));
 		JsonArray jsonShowtimesArray = new JsonArray();
 		for (Showtime showtime : showtimes) {
@@ -136,7 +141,7 @@ public class FFController {
 	/**
 	 * An endpoint in which their customers (i.e. moviegoers) can leave a review rating (from 1-5 stars) about a particular movie
 	 */
-	@PostMapping("/review")
+	@GetMapping("/review")
 	@ResponseBody
 	public boolean review(@RequestParam String movieNumber,
 						  @RequestParam String rating,
