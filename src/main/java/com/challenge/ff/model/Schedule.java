@@ -1,16 +1,23 @@
 package com.challenge.ff.model;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.time.LocalDate;
 import java.util.*;
 
 public class Schedule {
+
+    Logger logger = LoggerFactory.getLogger(Schedule.class);
+
     Map<LocalDate, Map<Movie, List<Showtime>>> movieDateMap;
 
     /**
      * Create new schedule
      */
     public Schedule() {
-        movieDateMap = new HashMap<>();
+        logger.info("Creating new schedule");
+        movieDateMap = new HashMap<LocalDate, Map<Movie, List<Showtime>>>();
     }
 
     /**
@@ -22,9 +29,9 @@ public class Schedule {
     }
 
     private Map<Movie, List<Showtime>> newMovieListMap() {
-        Map<Movie, List<Showtime>> movieListMap = new HashMap<>();
+        Map<Movie, List<Showtime>> movieListMap = new HashMap<Movie, List<Showtime>>();
         for (Movie movie : Arrays.asList(Movie.values())) {
-            List<Showtime> showtimes = new ArrayList<>();
+            List<Showtime> showtimes = new ArrayList<Showtime>();
             movieListMap.put(movie,  showtimes);
         }
         return movieListMap;
@@ -40,10 +47,12 @@ public class Schedule {
     }
 
     public List<Showtime> getShowtimeList(LocalDate date, int movieNumber) {
+        logger.info("Getting showtimes from schedule");
         Movie movie = Movie.movieLookup(movieNumber);
         Map<Movie, List<Showtime>> movieListMap = movieDateMap.get(date);
         if (movieListMap == null) {
-            return new ArrayList<>();
+            logger.info("No show times found");
+            return new ArrayList<Showtime>();
         } else {
             return movieListMap.get(movie);
         }
@@ -61,7 +70,7 @@ public class Schedule {
         Movie movie = Movie.movieLookup(movieNumber);
         if (movieDateMap.get(date) == null) {
             Map<Movie, List<Showtime>> movieListMap = newMovieListMap();
-            List<Showtime> showtimes = new ArrayList<>();
+            List<Showtime> showtimes = new ArrayList<Showtime>();
             showtimes.add(newShowtime);
             movieListMap.put(movie, showtimes);
             movieDateMap.put(date, movieListMap);

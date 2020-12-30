@@ -7,6 +7,7 @@ import java.net.URLConnection;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,13 +19,15 @@ import com.challenge.ff.model.Showtime;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import io.micrometer.core.instrument.util.IOUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.*;
 
 @Controller
 public class FFController {
+	Logger logger = LoggerFactory.getLogger(FFController.class);
+	DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
 	Schedule schedule;
 	Map<Movie, String> movieInfo;
@@ -34,8 +37,10 @@ public class FFController {
 		// TODO import data if file found
 
 		// else
+		logger.info("Creating new FF controller");
 		this.schedule = new Schedule();
-		this.reviewMap = new HashMap<>();
+		this.movieInfo = new HashMap<Movie, String>();
+		this.reviewMap = new HashMap<Movie, List<Review>>();
 	}
 
 	@GetMapping("/")
@@ -47,26 +52,29 @@ public class FFController {
 	/**
 	 * Add showtime
 	 */
-	@GetMapping("/add")
+	@PostMapping("/add")
 	@ResponseBody
-	public boolean addShowtime(@RequestParam(name="movie") int movie, @RequestParam(name="datetime") LocalDateTime timeOfShow, @RequestParam(name="price") double admissionPrice) {
-		LocalDate date = timeOfShow.toLocalDate();
-		LocalTime time = timeOfShow.toLocalTime();
-		Showtime showtime = new Showtime(time, admissionPrice);
-		schedule.addShowtime(date, showtime, movie);
+	public boolean addShowtime(@RequestParam String movie, @RequestParam String datetime, @RequestParam String price) {
+		logger.info("Adding showtime");
+		LocalDateTime datetimeOfShow = LocalDateTime.parse(datetime, formatter);
+		LocalDate date = datetimeOfShow.toLocalDate();
+		LocalTime time = datetimeOfShow.toLocalTime();
+		Showtime showtime = new Showtime(time, Double.parseDouble(price));
+		schedule.addShowtime(date, showtime, Integer.parseInt(movie));
 		return true;
 	}
 
 	/**
 	 * An internal endpoint in which they (i.e. the cinema owners) can update show times and prices for their movie catalog
 	 */
-	@GetMapping("/update")
+	@PatchMapping("/update")
 	@ResponseBody
-	public boolean updateShowtime(@RequestParam(name="movie") int movie, @RequestParam(name="datetime") LocalDateTime timeOfShow, @RequestParam(name="price") double admissionPrice) {
-		LocalDate date = timeOfShow.toLocalDate();
-		LocalTime time = timeOfShow.toLocalTime();
-		Showtime showtime = new Showtime(time, admissionPrice);
-		schedule.updateShowtime(date, showtime, movie);
+	public boolean updateShowtime(@RequestParam String movie, @RequestParam String datetime, @RequestParam String price) {
+		LocalDateTime datetimeOfShow = LocalDateTime.parse(datetime, formatter);
+		LocalDate date = datetimeOfShow.toLocalDate();
+		LocalTime time = datetimeOfShow.toLocalTime();
+		Showtime showtime = new Showtime(time, Double.parseDouble(price));
+		schedule.updateShowtime(date, showtime, Integer.parseInt(movie));
 		return true;
 	}
 
@@ -75,8 +83,10 @@ public class FFController {
 	 */
 	@GetMapping("/getshowtimes")
 	@ResponseBody
-	public String getShowtimes(@RequestParam(name="date") LocalDate date, @RequestParam(name="movie") int movie) {
-		List<Showtime> showtimes = schedule.getShowtimeList(date, movie);
+	public String getShowtimes(@RequestParam String date, @RequestParam String movie) {
+		logger.info("Retrieving showtimes");
+		LocalDate localDate = LocalDate.parse(date, formatter);
+		List<Showtime> showtimes = schedule.getShowtimeList(localDate, Integer.parseInt(movie));
 		JsonArray jsonShowtimesArray = new JsonArray();
 		for (Showtime showtime : showtimes) {
 			JsonObject showtimeJsonObject = new JsonObject();
@@ -85,8 +95,10 @@ public class FFController {
 			jsonShowtimesArray.add(showtimeJsonObject);
 		}
 		JsonObject jsonResultObject = new JsonObject();
-		jsonResultObject.add("Showtimes", jsonShowtimesArray);
-		return jsonResultObject.getAsString();
+		jsonResultObject.add("showtimes", jsonShowtimesArray);
+		String result = jsonResultObject.toString();
+		logger.info("Result: " + result);
+		return result;
 	}
 
 	/**
@@ -94,15 +106,15 @@ public class FFController {
 	 * (e.g. name, description, release date, rating, IMDb rating, and runtime).
 	 * Even though there's a limited offering, please use the OMDb APIs (detailed below) to demonstrate how to communicate across APIs.
 	 */
-	@GetMapping("/movie")
+	@GetMapping("/moviedetails")
 	@ResponseBody
-	public String getMovieDetails(@RequestParam(name="movie") int movieNumber) {
-		Movie movie = Movie.movieLookup(movieNumber);
-		String details = movieInfo.get(movie);
+	public String getMovieDetails(@RequestParam String movie) {
+		Movie ffmovie = Movie.movieLookup(Integer.parseInt(movie));
+		String details = movieInfo.get(ffmovie);
 		if (details != null && !details.isEmpty()) {
 			return details;
 		} else {
-			return getInfo(movie.getImdbID());
+			return getInfo(ffmovie.getImdbID());
 		}
 	}
 
@@ -124,14 +136,14 @@ public class FFController {
 	/**
 	 * An endpoint in which their customers (i.e. moviegoers) can leave a review rating (from 1-5 stars) about a particular movie
 	 */
-	@GetMapping("/review")
+	@PostMapping("/review")
 	@ResponseBody
-	public boolean review(@RequestParam(name="movie") int movieNumber,
-						  @RequestParam(name="rating") int rating,
-						  @RequestParam(name="author") String author,
-						  @RequestParam(name="explanation") String explanation) {
-		Review review = new Review(rating, author, explanation);
-		Movie movie = Movie.movieLookup(movieNumber);
+	public boolean review(@RequestParam String movieNumber,
+						  @RequestParam String rating,
+						  @RequestParam String author,
+						  @RequestParam String explanation) {
+		Review review = new Review(Integer.parseInt(rating), author, explanation);
+		Movie movie = Movie.movieLookup(Integer.parseInt(movieNumber));
 		List<Review> reviews = reviewMap.get(movie);
 		reviews.add(review);
 		reviewMap.put(movie,reviews);
